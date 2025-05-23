@@ -10,6 +10,15 @@ TOKEN = os.getenv("TELEGRAM_TOKEN")
 bot = telebot.TeleBot(TOKEN)
 
 btn_menu = types.KeyboardButton("Меню")
+EMPTY_RECORD = {
+    "chat_id": 0,
+    "category_id": 0,
+    "description": "    ",
+    "new": True,
+    "price": 0
+}
+def reset_record():
+    return EMPTY_RECORD.copy()
 
 # Декоратор для обработки команды /start и /menu
 @bot.message_handler(func=lambda m: m.text in ["Меню"] or m.text in ["/start", "/menu"]) 
@@ -39,12 +48,34 @@ def my_ads(message):
     bot.send_message(message.chat.id, f"Количесвто ваших записей: {count}", reply_markup = markup)
 
 
-new_record = [] # Временные данные
+
+
+#################################### Посмотреть мои записи ####################################
+@bot.message_handler(func=lambda m: m.text == "Посмотреть записи")
+def show_my_ads(message):
+    records = get_records(message.chat.id)
+    for rec in records:
+        msg = f"{rec["description"]}\n\n" + \
+        f"Цена: {rec["price"]} рублей\n" + \
+        f"Контакты: @{id_to_username(rec["chat_id"])}\n" + \
+        f"Дата объявления: {rec["created_at"][:9]}\n" + \
+        f"#{id_to_category(rec["category_id"])}"
+
+        bot.send_message(message.chat.id, msg)
+    
+    my_ads(message)
+
+
+
+
+
+
+record = reset_record()
 
 #################################### Создание новой записи ####################################
 @bot.message_handler(func=lambda m: m.text == "Добавить запись")
 def start_new_ads(message):
-    new_record.append(message.chat.id)
+    record["chat_id"] = message.chat.id
     bot.send_message(
         message.chat.id,
         """Выберите категорию товара:
@@ -68,7 +99,7 @@ def process_category_step(message):
         bot.register_next_step_handler(message, process_category_step)  # Повторно регистрируем обработчик
         return
 
-    new_record.append(int(message.text))
+    record["category_id"] = int(message.text)
     bot.send_message(message.chat.id, "Введите описание товара:")
     bot.register_next_step_handler(message, process_description_step)
 
@@ -79,7 +110,7 @@ def process_description_step(message):
         bot.send_message(message.chat.id, "Описание слишком короткое.\nПопробуйте снова:")
         return bot.register_next_step_handler(message, process_description_step)
 
-    new_record.append(description)
+    record["description"] = description
     bot.send_message(message.chat.id, "Каково состояние товара?\n1. Новый\n2. Б/у")
     bot.register_next_step_handler(message, process_status_step)
 
@@ -88,24 +119,30 @@ def process_status_step(message):
         bot.send_message(message.chat.id, "Пожалуйста, введите цифру от 1 до 2")
         return bot.register_next_step_handler(message, process_status_step)
 
-    if int(message.text) == 1: new_record.append(True)
-    else: new_record.append(False)
+    if int(message.text) == 2: record["new"] = False
 
     bot.send_message(message.chat.id, "Введите цену товара (только число):")
     bot.register_next_step_handler(message, process_price_step)
 
 def process_price_step(message):
+    global record
     if not message.text.isdigit() or int(message.text) < 0:
         bot.send_message(message.chat.id, "Некорректный ввод.\nПопробуйте снова:")
         return bot.register_next_step_handler(message, process_price_step)
 
-    new_record.append(int(message.text))
-    create_record(new_record)
-    new_record.clear()
+    record["price"] = int(message.text)
+    create_record(record)
+    record = reset_record()
     bot.send_message(message.chat.id, "Объявление добавлено!")
 
     my_ads(message)
 ############################################################################################################
+
+
+
+
+
+
 
 
 # Баловство

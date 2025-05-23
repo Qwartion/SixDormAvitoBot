@@ -20,20 +20,29 @@ def save_user(chat_id, username):
             "chat_id": chat_id,
             "username": username
         }
-        response = supabase.table("users").insert(data).execute()
-        return response
+        supabase.table("users").insert(data).execute()
+        print("Новый пользователь")
+    elif existing_user.data[0]["username"] != username:
+        supabase.table("users").update({"username": username}).eq("chat_id", chat_id).execute()
+        print("Имя измененно")
+
 
 
 def record_count(chat_id):
     existing_record = supabase.table("record").select("*", count="exact").eq("chat_id", chat_id).execute()
     return existing_record.count
 
-def create_record(new_record):
-    data = {
-        "chat_id": new_record[0],
-        "category_id": new_record[1],
-        "description": new_record[2],
-        "new": new_record[3],
-        "price": new_record[4]
-    }
-    supabase.table("record").insert(data).execute()
+def create_record(record):
+    supabase.table("record").insert(record).execute()
+
+def get_records(chat_id):
+    response = supabase.table("record").select("*").eq("chat_id", chat_id).execute()
+    return response.data
+
+def id_to_username(chat_id):
+    response = supabase.table("users").select("username").eq("chat_id", chat_id).execute()
+    return response.data[0]["username"]
+
+def id_to_category(category_id):
+    response = supabase.table("category").select("name").eq("category_id", category_id).execute()
+    return response.data[0]["name"]
