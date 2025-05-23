@@ -28,11 +28,12 @@ def record_count(chat_id):
     existing_record = supabase.table("record").select("*", count="exact").eq("chat_id", chat_id).execute()
     return existing_record.count
 
-def create_record(chat, category, description, price):
+def create_record(new_record):
     data = {
-        "chat_id": chat,
-        "category_id": category,
-        "description": description,
-        "price": price
+        "chat_id": new_record[0],
+        "category_id": new_record[1],
+        "description": new_record[2],
+        "new": new_record[3],
+        "price": new_record[4]
     }
     supabase.table("record").insert(data).execute()
