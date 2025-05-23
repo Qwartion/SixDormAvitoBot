@@ -22,10 +22,11 @@ def reset_record():
 
 # Декоратор для обработки команды /start и /menu
 @bot.message_handler(func=lambda m: m.text in ["Меню"] or m.text in ["/start", "/menu"]) 
-def send_welcome(message):    
+def menu(message):    
+    print("Запущен menu")
     save_user(message.chat.id, message.from_user.username)
     
-    markup = types.ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard=True)
+    markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
     btn1 = types.KeyboardButton("Мои объявления")
     btn2 = types.KeyboardButton("Чужие объявления")
     markup.add(btn1, btn2)
@@ -34,14 +35,15 @@ def send_welcome(message):
 
 @bot.message_handler(func=lambda m: m.text == "Мои объявления")
 def my_ads(message):
+    print("Запущен my_ads")
     count = record_count(message.chat.id)
     if(count > 0):
-        markup = types.ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard=True, row_width = 1)
+        markup = types.ReplyKeyboardMarkup(resize_keyboard=True, row_width = 1)
         btn1 = types.KeyboardButton("Посмотреть записи")
         btn2 = types.KeyboardButton("Добавить запись")
         markup.add(btn1, btn2, btn_menu)
     else:
-        markup = types.ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard=True, row_width = 1)
+        markup = types.ReplyKeyboardMarkup(resize_keyboard=True, row_width = 1)
         btn1 = types.KeyboardButton("Добавить запись")
         markup.add(btn1, btn_menu)
 
@@ -53,12 +55,13 @@ def my_ads(message):
 #################################### Посмотреть мои записи ####################################
 @bot.message_handler(func=lambda m: m.text == "Посмотреть записи")
 def show_my_ads(message):
+    print("Запущен show_my_ads")
     records = get_records(message.chat.id)
     for rec in records:
         msg = f"{rec["description"]}\n\n" + \
         f"Цена: {rec["price"]} рублей\n" + \
         f"Контакты: @{id_to_username(rec["chat_id"])}\n" + \
-        f"Дата объявления: {rec["created_at"][:9]}\n" + \
+        f"Дата объявления: {rec["created_at"][:10]}\n" + \
         f"#{id_to_category(rec["category_id"])}"
 
         bot.send_message(message.chat.id, msg)
@@ -75,6 +78,7 @@ record = reset_record()
 #################################### Создание новой записи ####################################
 @bot.message_handler(func=lambda m: m.text == "Добавить запись")
 def start_new_ads(message):
+    print("Запущен start_new_ads")
     record["chat_id"] = message.chat.id
     bot.send_message(
         message.chat.id,
@@ -94,7 +98,8 @@ def start_new_ads(message):
 
 
 def process_category_step(message):
-    if not message.text.isdigit() or int(message.text) < 1 or int(message.text) > 9: # isdigit() -- только цифры в сообщении
+    print("Запущен process_category_step")
+    if not message.text or not message.text.isdigit() or int(message.text) < 1 or int(message.text) > 9: # isdigit() -- только цифры в сообщении
         bot.send_message(message.chat.id, "Пожалуйста, введите цифру от 1 до 9")
         bot.register_next_step_handler(message, process_category_step)  # Повторно регистрируем обработчик
         return
@@ -104,6 +109,7 @@ def process_category_step(message):
     bot.register_next_step_handler(message, process_description_step)
 
 def process_description_step(message):
+    print("Запущен process_description_step")
     description = message.text.strip()
 
     if len(description) < 3:
@@ -115,7 +121,8 @@ def process_description_step(message):
     bot.register_next_step_handler(message, process_status_step)
 
 def process_status_step(message):
-    if not message.text.isdigit() or int(message.text) < 1 or int(message.text) > 2:
+    print("Запущен process_status_step")
+    if not message.text or not message.text.isdigit() or int(message.text) < 1 or int(message.text) > 2:
         bot.send_message(message.chat.id, "Пожалуйста, введите цифру от 1 до 2")
         return bot.register_next_step_handler(message, process_status_step)
 
@@ -125,9 +132,10 @@ def process_status_step(message):
     bot.register_next_step_handler(message, process_price_step)
 
 def process_price_step(message):
+    print("Запущен process_price_step")
     global record
-    if not message.text.isdigit() or int(message.text) < 0:
-        bot.send_message(message.chat.id, "Некорректный ввод.\nПопробуйте снова:")
+    if not message.text or not message.text.isdigit() or int(message.text) < 0 or int(message.text) > 2000000:
+        bot.send_message(message.chat.id, "Некорректный ввод. Допустимы ввод от 0 до 2000000.\nПопробуйте снова:")
         return bot.register_next_step_handler(message, process_price_step)
 
     record["price"] = int(message.text)
@@ -148,14 +156,12 @@ def process_price_step(message):
 # Баловство
 
 @bot.message_handler(func=lambda m: True) # принимает все сообщения которые не были пойманы до этого
-def echo_all(message):
-    bot.send_message(message.chat.id, f"""
-Информация о тебе:
-id = {message.from_user.id}
-first_name = {message.from_user.first_name}
-user_name = {message.from_user.username}
-language code = {message.from_user.language_code}
-""")
+def alll(message):
+    print("Запущен alll")
+    bot.send_message(message.chat.id, f"Не реализовано. Возвращайся в меню")
+    menu(message)
+
+
 
 
 
