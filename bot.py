@@ -28,7 +28,7 @@ def menu(message):
     
     markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
     btn1 = types.KeyboardButton("Мои объявления")
-    btn2 = types.KeyboardButton("Чужие объявления")
+    btn2 = types.KeyboardButton("Активные объявления")
     markup.add(btn1, btn2)
     bot.send_message(message.chat.id, "Сейчас ты находишься в меню!", reply_markup=markup)
 
@@ -47,7 +47,7 @@ def my_ads(message):
         btn1 = types.KeyboardButton("Добавить запись")
         markup.add(btn1, btn_menu)
 
-    bot.send_message(message.chat.id, f"Количесвто ваших записей: {count}", reply_markup = markup)
+    bot.send_message(message.chat.id, f"Количество ваших записей: {count}", reply_markup = markup)
 
 
 
@@ -58,11 +58,11 @@ def show_my_ads(message):
     print("Запущен show_my_ads")
     records = get_records(message.chat.id)
     for rec in records:
-        msg = f"{rec["description"]}\n\n" + \
-        f"Цена: {rec["price"]} рублей\n" + \
-        f"Контакты: @{id_to_username(rec["chat_id"])}\n" + \
-        f"Дата объявления: {rec["created_at"][:10]}\n" + \
-        f"#{id_to_category(rec["category_id"])}"
+        msg = f'{rec["description"]}\n\n' + \
+        f'Цена: {rec["price"]} рублей\n' + \
+        f'Контакты: @{id_to_username(rec["chat_id"])}\n' + \
+        f'Дата объявления: {rec["created_at"][:10]}\n' + \
+        f'#{id_to_category(rec["category_id"])}'
 
         bot.send_message(message.chat.id, msg)
     
@@ -147,6 +147,96 @@ def process_price_step(message):
 ############################################################################################################
 
 
+
+##################################### Просмотр активных записей ############################################
+
+@bot.message_handler(func=lambda m: m.text == "Активные объявления")
+def active_ads(message):
+    print("Запущен active_ads")
+    markup = types.ReplyKeyboardMarkup(resize_keyboard=True, row_width=2)
+    btn1 = types.KeyboardButton("Показать все")
+    btn2 = types.KeyboardButton("Фильтрация")
+    markup.add(btn1, btn2, btn_menu)
+    bot.send_message(message.chat.id, "Выберите действие:", reply_markup=markup)
+    
+#### Показать все ####
+@bot.message_handler(func=lambda m: m.text == "Показать все")
+def show_all_ads(message):
+    print("Запущен show_all_ads")
+    ads = get_all_active_records(message.chat.id)
+    if not ads:
+        bot.send_message(message.chat.id, "Объявления не найдены.")
+        return
+    send_ads_list(message.chat.id, ads)
+
+#### Фильтрация ####
+@bot.message_handler(func=lambda m: m.text == "Фильтрация")
+def start_filtering(message):       # выбор категории
+    print("Запущен start_filtering")
+    bot.send_message(message.chat.id, """Выберите категорию (введите цифру от 1 до 9 или 0, чтобы пропустить):
+1. Одежда
+2. Книги
+3. Электроника
+4. Мебель
+5. Бытовая техника
+6. Косметика
+7. Еда
+8. Канцелярия
+9. Другое""")
+    bot.register_next_step_handler(message, filter_step_category)
+
+def filter_step_category(message):  # валидация категории и выбор цены
+    print("Запущен filter_step_category")
+    if not message.text or not message.text.isdigit() or not (0 <= int(message.text) <= 9):
+        bot.send_message(message.chat.id, "Введите цифру от 0 до 9.")
+        return bot.register_next_step_handler(message, filter_step_category)
+
+    category_id = int(message.text)
+    category_id = None if category_id == 0 else category_id
+    bot.send_message(message.chat.id, "Введите максимальную цену (или -1, если не важно):")
+    bot.register_next_step_handler(message, lambda msg: filter_step_price(msg, category_id))
+
+def filter_step_price(message, category_id):    # валидация цены и выбор тегов
+    print("Запущен filter_step_price")
+    try:
+        max_price = int(message.text)
+    except ValueError:
+        bot.send_message(message.chat.id, "Введите число (-1, если не важно).")
+        return bot.register_next_step_handler(message, lambda msg: filter_step_price(msg, category_id))
+
+    if not (-1 <= max_price <= 1000000):
+        bot.send_message(message.chat.id, "Введите число от -1 до 1 000 000.")
+        return bot.register_next_step_handler(message, lambda msg: filter_step_price(msg, category_id))
+    max_price = None if max_price == -1 else max_price
+    bot.send_message(message.chat.id, "Введите ключевые слова (теги) через пробел (или '-' если не важно):")
+    bot.register_next_step_handler(message, lambda msg: filter_step_tags(msg, category_id, max_price))
+
+def filter_step_tags(message, category_id, max_price):  # запись тегов и формирование данных для запроса к бд
+    print("Запущен filter_step_tags")
+    tags = message.text.strip().split() if message.text.strip() != "-" else []
+    ads = filter_records_combined(
+        chat_id=message.chat.id,
+        category_id=category_id,
+        max_price=max_price,
+        tags=tags
+    )
+    if not ads:
+        bot.send_message(message.chat.id, "Объявления не найдены.")
+        return
+    send_ads_list(message.chat.id, ads)
+    
+def send_ads_list(chat_id, ads):    # отпарвка списка объявлений
+    print("Запущен send_ads_list")
+    for rec in ads:
+        msg = f'{rec["description"]}\n\n' + \
+              f'Цена: {rec["price"]} рублей\n' + \
+              f'Контакты: @{id_to_username(rec["chat_id"])}\n' + \
+              f'Дата объявления: {rec["created_at"][:10]}\n' + \
+              f'#{id_to_category(rec["category_id"])}'
+        bot.send_message(chat_id, msg)
+
+
+############################################################################################################
 
 
 

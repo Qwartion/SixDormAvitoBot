@@ -46,3 +46,32 @@ def id_to_username(chat_id):
 def id_to_category(category_id):
     response = supabase.table("category").select("name").eq("category_id", category_id).execute()
     return response.data[0]["name"]
+
+
+### Вывод всех активных объявлений: ###
+def get_all_active_records(exclude_chat_id):
+    response = supabase.table("record").select("*").eq("is_active", True).neq("chat_id", exclude_chat_id).order("created_at", desc=True).execute()
+    return response.data
+
+### для фильтров: ###
+def filter_records_combined(chat_id, category_id=None, max_price=None, tags=None):
+    query = supabase.table("record").select("*").eq("is_active", True).neq("chat_id", chat_id)
+
+    if category_id is not None:
+        query = query.eq("category_id", category_id)
+
+    if max_price is not None:
+        query = query.lte("price", max_price)
+
+    q_result = query.order("created_at", desc=True).execute()
+    records = q_result.data
+
+    if tags:
+        filtered = []
+        for record in records:
+            desc = record.get("description", "").lower()
+            if any(tag.lower() in desc for tag in tags):
+                filtered.append(record)
+        return filtered
+
+    return records
