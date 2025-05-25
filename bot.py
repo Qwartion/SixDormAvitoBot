@@ -58,7 +58,9 @@ def show_my_ads(message):
     print("Запущен show_my_ads")
     records = get_records(message.chat.id)
     for rec in records:
+        condition = "Новое" if rec.get("new") else "Б/у"
         msg = f'{rec["description"]}\n\n' + \
+        f'Состояние: {condition}\n' + \
         f'Цена: {rec["price"]} рублей\n' + \
         f'Контакты: @{id_to_username(rec["chat_id"])}\n' + \
         f'Дата объявления: {rec["created_at"][:10]}\n' + \
@@ -167,13 +169,15 @@ def show_all_ads(message):
     if not ads:
         bot.send_message(message.chat.id, "Объявления не найдены.")
         return
-    send_ads_list(message.chat.id, ads)
+    send_ads_list(message, message.chat.id, ads)
 
 #### Фильтрация ####
 @bot.message_handler(func=lambda m: m.text == "Фильтрация")
 def start_filtering(message):       # выбор категории
     print("Запущен start_filtering")
-    bot.send_message(message.chat.id, """Выберите категорию (введите цифру от 1 до 9 или 0, чтобы пропустить):
+    bot.send_message(
+        message.chat.id, 
+        """Выберите категорию (введите цифру от 1 до 9 или 0, чтобы пропустить):
 1. Одежда
 2. Книги
 3. Электроника
@@ -182,7 +186,8 @@ def start_filtering(message):       # выбор категории
 6. Косметика
 7. Еда
 8. Канцелярия
-9. Другое""")
+9. Другое""", 
+        reply_markup=types.ReplyKeyboardRemove())
     bot.register_next_step_handler(message, filter_step_category)
 
 def filter_step_category(message):  # валидация категории и выбор цены
@@ -223,17 +228,20 @@ def filter_step_tags(message, category_id, max_price):  # запись тего�
     if not ads:
         bot.send_message(message.chat.id, "Объявления не найдены.")
         return
-    send_ads_list(message.chat.id, ads)
+    send_ads_list(message, message.chat.id, ads)
     
-def send_ads_list(chat_id, ads):    # отпарвка списка объявлений
+def send_ads_list(message, chat_id, ads):    # отпарвка списка объявлений
     print("Запущен send_ads_list")
     for rec in ads:
+        condition = "Новое" if rec.get("new") else "Б/у"
         msg = f'{rec["description"]}\n\n' + \
+              f'Состояние: {condition}\n' + \
               f'Цена: {rec["price"]} рублей\n' + \
               f'Контакты: @{id_to_username(rec["chat_id"])}\n' + \
               f'Дата объявления: {rec["created_at"][:10]}\n' + \
               f'#{id_to_category(rec["category_id"])}'
         bot.send_message(chat_id, msg)
+    active_ads(message)
 
 
 ############################################################################################################

@@ -29,14 +29,14 @@ def save_user(chat_id, username):
 
 
 def record_count(chat_id):
-    existing_record = supabase.table("record").select("*", count="exact").eq("chat_id", chat_id).execute()
+    existing_record = supabase.table("record").select("*", count="exact").eq("chat_id", chat_id).eq("is_active", True).execute()
     return existing_record.count
 
 def create_record(record):
     supabase.table("record").insert(record).execute()
 
 def get_records(chat_id):
-    response = supabase.table("record").select("*").eq("chat_id", chat_id).execute()
+    response = supabase.table("record").select("*").eq("chat_id", chat_id).eq("is_active", True).execute()
     return response.data
 
 def id_to_username(chat_id):
