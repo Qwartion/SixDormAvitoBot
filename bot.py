@@ -15,10 +15,12 @@ EMPTY_RECORD = {
     "category_id": 0,
     "description": "    ",
     "new": True,
-    "price": 0
+    "price": 0,
 }
 def reset_record():
     return EMPTY_RECORD.copy()
+
+photo = ""
 
 # Декоратор для обработки команды /start и /menu
 @bot.message_handler(func=lambda m: m.text in ["Меню"] or m.text in ["/start", "/menu"]) 
@@ -58,6 +60,7 @@ def show_my_ads(message):
     print("Запущен show_my_ads")
     records = get_records(message.chat.id)
     for rec in records:
+        file_id = get_photo(rec["record_id"])
         condition = "Новое" if rec.get("new") else "Б/у"
         msg = f'{rec["description"]}\n\n' + \
         f'Состояние: {condition}\n' + \
@@ -66,10 +69,26 @@ def show_my_ads(message):
         f'Дата объявления: {rec["created_at"][:10]}\n' + \
         f'#{id_to_category(rec["category_id"])}'
 
-        bot.send_message(message.chat.id, msg)
+        markup = types.InlineKeyboardMarkup()
+        button = types.InlineKeyboardButton("Удалить", callback_data=f"delete_{rec['record_id']}")
+        markup.add(button)
+
+        if(file_id == []):
+            bot.send_message(message.chat.id, msg, reply_markup=markup)
+        else:
+            bot.send_photo(chat_id = message.chat.id, photo = file_id[0]["file_id"], caption = msg, reply_markup=markup)
     
     my_ads(message)
 
+@bot.callback_query_handler(func=lambda call: call.data.startswith("delete_"))
+def callback_edit_record(call):
+    record_id = int(call.data.split("_")[1])
+    
+    delete_record(record_id)
+    bot.delete_message(chat_id=call.message.chat.id, message_id=call.message.message_id)
+    bot.answer_callback_query(call.id)
+  
+    
 
 
 
@@ -107,15 +126,44 @@ def process_category_step(message):
         return
 
     record["category_id"] = int(message.text)
+    bot.send_message(message.chat.id, "Хотите добавить фото к объявлению?\n 1. Да\n 2. Нет")
+    bot.register_next_step_handler(message, ask_add_photo)
+
+def ask_add_photo(message):
+    if message.text and message.text == "1":
+        bot.send_message(message.chat.id, "Отправьте одно фото (сохранится только первое).")
+        bot.register_next_step_handler(message, handle_photo_message)
+    elif message.text and message.text == "2":
+        bot.send_message(message.chat.id, "Введите описание товара:")
+        bot.register_next_step_handler(message, process_description_step)
+    elif not message.text or (message.text != "1" and message.text != "2"):
+        bot.send_message(message.chat.id, "Пожалуйста, введите 1 или 2.")
+        bot.register_next_step_handler(message, ask_add_photo)
+
+def handle_photo_message(message):
+    print("Запущен handle_photo_message")
+
+    if not message.photo:
+        bot.send_message(message.chat.id, "Вы не отправили фото. Попробуйте снова:")
+        return bot.register_next_step_handler(message, handle_photo_message)
+
+    global photo
+    photo = message.photo[-1].file_id
     bot.send_message(message.chat.id, "Введите описание товара:")
     bot.register_next_step_handler(message, process_description_step)
 
 def process_description_step(message):
     print("Запущен process_description_step")
+    if not message.text:
+        bot.send_message(message.chat.id, "Некорректный ввод.\nПопробуйте снова:")
+        return bot.register_next_step_handler(message, process_description_step)
     description = message.text.strip()
 
     if len(description) < 3:
-        bot.send_message(message.chat.id, "Описание слишком короткое.\nПопробуйте снова:")
+        bot.send_message(message.chat.id, "Описание слишком короткое (надо больше 3 символов).\nПопробуйте снова:")
+        return bot.register_next_step_handler(message, process_description_step)
+    elif len(description) > 1024:
+        bot.send_message(message.chat.id, "Описание слишком длинное (надо меньше 1024 символов).\nПопробуйте снова:")
         return bot.register_next_step_handler(message, process_description_step)
 
     record["description"] = description
@@ -137,14 +185,19 @@ def process_price_step(message):
     print("Запущен process_price_step")
     global record
     if not message.text or not message.text.isdigit() or int(message.text) < 0 or int(message.text) > 2000000:
-        bot.send_message(message.chat.id, "Некорректный ввод. Допустимы ввод от 0 до 2000000.\nПопробуйте снова:")
+        bot.send_message(message.chat.id, "Некорректный ввод. Допустимы ввод от 0 до 2 000 000.\nПопробуйте снова:")
         return bot.register_next_step_handler(message, process_price_step)
 
     record["price"] = int(message.text)
-    create_record(record)
-    record = reset_record()
-    bot.send_message(message.chat.id, "Объявление добавлено!")
+    finalize_record(message)
 
+    
+def finalize_record(message):
+    global record, photo
+    create_record(record, photo)
+    bot.send_message(message.chat.id, "Объявление добавлено!")
+    record = reset_record()
+    photo = ""
     my_ads(message)
 ############################################################################################################
 
@@ -203,15 +256,16 @@ def filter_step_category(message):  # валидация категории и �
 
 def filter_step_price(message, category_id):    # валидация цены и выбор тегов
     print("Запущен filter_step_price")
-    try:
-        max_price = int(message.text)
-    except ValueError:
-        bot.send_message(message.chat.id, "Введите число (-1, если не важно).")
-        return bot.register_next_step_handler(message, lambda msg: filter_step_price(msg, category_id))
+    # try:
+    #     max_price = int(message.text)
+    # except ValueError:
+    #     bot.send_message(message.chat.id, "Введите число (-1, если не важно).")
+    #     return bot.register_next_step_handler(message, lambda msg: filter_step_price(msg, category_id))
 
-    if not (-1 <= max_price <= 1000000):
-        bot.send_message(message.chat.id, "Введите число от -1 до 1 000 000.")
+    if not message.text or not (-1 <= int(message.text) <= 1000000):
+        bot.send_message(message.chat.id, "Введите число от -1 до 2 000 000.")
         return bot.register_next_step_handler(message, lambda msg: filter_step_price(msg, category_id))
+    max_price = int(message.text)
     max_price = None if max_price == -1 else max_price
     bot.send_message(message.chat.id, "Введите ключевые слова (теги) через пробел (или '-' если не важно):")
     bot.register_next_step_handler(message, lambda msg: filter_step_tags(msg, category_id, max_price))
@@ -227,12 +281,14 @@ def filter_step_tags(message, category_id, max_price):  # запись тего�
     )
     if not ads:
         bot.send_message(message.chat.id, "Объявления не найдены.")
+        active_ads(message)
         return
     send_ads_list(message, message.chat.id, ads)
     
 def send_ads_list(message, chat_id, ads):    # отпарвка списка объявлений
     print("Запущен send_ads_list")
     for rec in ads:
+        file_id = get_photo(rec["record_id"])
         condition = "Новое" if rec.get("new") else "Б/у"
         msg = f'{rec["description"]}\n\n' + \
               f'Состояние: {condition}\n' + \
@@ -240,10 +296,11 @@ def send_ads_list(message, chat_id, ads):    # отпарвка списка о�
               f'Контакты: @{id_to_username(rec["chat_id"])}\n' + \
               f'Дата объявления: {rec["created_at"][:10]}\n' + \
               f'#{id_to_category(rec["category_id"])}'
-        bot.send_message(chat_id, msg)
+        if(file_id == []):
+            bot.send_message(chat_id, msg)
+        else:
+            bot.send_photo(chat_id = chat_id, photo = file_id[0]["file_id"], caption = msg)
     active_ads(message)
-
-
 ############################################################################################################
 
 

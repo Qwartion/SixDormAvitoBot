@@ -32,12 +32,23 @@ def record_count(chat_id):
     existing_record = supabase.table("record").select("*", count="exact").eq("chat_id", chat_id).eq("is_active", True).execute()
     return existing_record.count
 
-def create_record(record):
+def create_record(record, file_id):
     supabase.table("record").insert(record).execute()
+    if file_id != "":
+        response = supabase.table("record").select("record_id").order("record_id", desc=True).limit(1).execute()
+        supabase.table("photos").insert({"file_id": file_id, "file_unique_id": file_id, "record_id": response.data[0]["record_id"]}).execute()
+
+def delete_record(record_id):
+    supabase.table("record").update({"is_active": False}).eq("record_id", record_id).execute()
 
 def get_records(chat_id):
     response = supabase.table("record").select("*").eq("chat_id", chat_id).eq("is_active", True).execute()
     return response.data
+
+def get_photo(record_id):
+    response = supabase.table("photos").select("file_id").eq("record_id", record_id).execute()
+    return response.data
+
 
 def id_to_username(chat_id):
     response = supabase.table("users").select("username").eq("chat_id", chat_id).execute()
@@ -50,7 +61,7 @@ def id_to_category(category_id):
 
 ### Вывод всех активных объявлений: ###
 def get_all_active_records(exclude_chat_id):
-    response = supabase.table("record").select("*").eq("is_active", True).neq("chat_id", exclude_chat_id).order("created_at", desc=True).execute()
+    response = supabase.table("record").select("*").eq("is_active", True).neq("chat_id", exclude_chat_id).order("created_at", desc=False).execute()
     return response.data
 
 ### для фильтров: ###
