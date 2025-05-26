@@ -35,7 +35,7 @@ def menu(message):
     bot.send_message(message.chat.id, "Сейчас ты находишься в меню!", reply_markup=markup)
 
 
-@bot.message_handler(func=lambda m: m.text == "Мои объявления")
+@bot.message_handler(func=lambda m: m.text == "Мои объявления") # переход в ветку своих объявлений
 def my_ads(message):
     print("Запущен my_ads")
     count = record_count(message.chat.id)
@@ -80,7 +80,7 @@ def show_my_ads(message):
     
     my_ads(message)
 
-@bot.callback_query_handler(func=lambda call: call.data.startswith("delete_"))
+@bot.callback_query_handler(func=lambda call: call.data.startswith("delete_"))  # вызов удаления записи из бд
 def callback_edit_record(call):
     record_id = int(call.data.split("_")[1])
     
@@ -118,7 +118,7 @@ def start_new_ads(message):
     bot.register_next_step_handler(message, process_category_step)
 
 
-def process_category_step(message):
+def process_category_step(message): # валидация выбора категории переход к добавлению фото
     print("Запущен process_category_step")
     if not message.text or not message.text.isdigit() or int(message.text) < 1 or int(message.text) > 9: # isdigit() -- только цифры в сообщении
         bot.send_message(message.chat.id, "Пожалуйста, введите цифру от 1 до 9")
@@ -129,7 +129,7 @@ def process_category_step(message):
     bot.send_message(message.chat.id, "Хотите добавить фото к объявлению?\n 1. Да\n 2. Нет")
     bot.register_next_step_handler(message, ask_add_photo)
 
-def ask_add_photo(message):
+def ask_add_photo(message): # нужно ли добавлять фото
     if message.text and message.text == "1":
         bot.send_message(message.chat.id, "Отправьте одно фото (сохранится только первое).")
         bot.register_next_step_handler(message, handle_photo_message)
@@ -140,7 +140,7 @@ def ask_add_photo(message):
         bot.send_message(message.chat.id, "Пожалуйста, введите 1 или 2.")
         bot.register_next_step_handler(message, ask_add_photo)
 
-def handle_photo_message(message):
+def handle_photo_message(message):  # добавление фото и запрос на описание товара
     print("Запущен handle_photo_message")
 
     if not message.photo:
@@ -152,7 +152,7 @@ def handle_photo_message(message):
     bot.send_message(message.chat.id, "Введите описание товара:")
     bot.register_next_step_handler(message, process_description_step)
 
-def process_description_step(message):
+def process_description_step(message):  # валидация описания, переход к состоянию
     print("Запущен process_description_step")
     if not message.text:
         bot.send_message(message.chat.id, "Некорректный ввод.\nПопробуйте снова:")
@@ -170,7 +170,7 @@ def process_description_step(message):
     bot.send_message(message.chat.id, "Каково состояние товара?\n1. Новый\n2. Б/у")
     bot.register_next_step_handler(message, process_status_step)
 
-def process_status_step(message):
+def process_status_step(message):   # валидаця состояния и запрос цены
     print("Запущен process_status_step")
     if not message.text or not message.text.isdigit() or int(message.text) < 1 or int(message.text) > 2:
         bot.send_message(message.chat.id, "Пожалуйста, введите цифру от 1 до 2")
@@ -181,7 +181,7 @@ def process_status_step(message):
     bot.send_message(message.chat.id, "Введите цену товара (только число):")
     bot.register_next_step_handler(message, process_price_step)
 
-def process_price_step(message):
+def process_price_step(message):    # валидация цены
     print("Запущен process_price_step")
     global record
     if not message.text or not message.text.isdigit() or int(message.text) < 0 or int(message.text) > 2000000:
@@ -192,7 +192,7 @@ def process_price_step(message):
     finalize_record(message)
 
     
-def finalize_record(message):
+def finalize_record(message):   # добавление записи в бд
     global record, photo
     create_record(record, photo)
     bot.send_message(message.chat.id, "Объявление добавлено!")
